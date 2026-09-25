@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordRequestForm
 from app.auth.schema import SignupRequest, TokenResponse, UserResponse, RefreshRequest, ForgotPasswordRequest, ResetPasswordRequest
 from app.auth import service
+from app.database.models import User
 from app.core.dependencies import db_dependency, user_dependency
 
 router = APIRouter()
@@ -32,10 +33,12 @@ def refresh(data: RefreshRequest, db: db_dependency):
 
 @router.post("/forgot-password")
 def forgot_password(data: ForgotPasswordRequest, db: db_dependency):
-    service.generate_password_reset_token(db, data.email)
-    return {"detail": "If the email exists, a reset link has been sent."}
+    user = db.query(User).filter(User.email == data.email).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email not found")
+    return {"message": "Email verified"}
 
 @router.post("/reset-password")
 def reset_password(data: ResetPasswordRequest, db: db_dependency):
-    service.reset_user_password(db, data.token, data.new_password)
+    service.reset_user_password(db, data.email, data.new_password)
     return {"detail": "Password has been reset successfully."}

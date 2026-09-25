@@ -1,9 +1,8 @@
 from datetime import datetime, timedelta, timezone
-import secrets
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.core.security import hash_password, verify_password, create_access_token, create_refresh_token, decode_token
-from app.database.models import User, PasswordResetToken
+from app.database.models import User
 
 def get_user_by_email(db: Session, email: str):
     return db.query(User).filter(User.email == email).first()
@@ -40,22 +39,9 @@ def refresh_access_token(db: Session, refresh_token: str):
         raise HTTPException(status_code=401, detail="User not found or inactive")
     return create_access_token({"sub": str(user.id), "role": user.role})
 
-def generate_password_reset_token(db: Session, email: str):
+def reset_user_password(db: Session, email: str, new_password: str):
     user = get_user_by_email(db, email)
-    if user:
-        token = secrets.token_urlsafe(48)
-        exp = datetime.now(timezone.utc) + timedelta(hours=1)
-        prt = PasswordResetToken(user_id=user.id, token=token, expires_at=exp, used=False)
-        db.add(prt)
-        db.commit()
-
-def reset_user_password(db: Session, token: str, new_password: str):
-    prt = db.query(PasswordResetToken).filter(PasswordResetToken.token == token, PasswordResetToken.expires_at > datetime.now(timezone.utc), PasswordResetToken.used == False).first()
-    if not prt:
-        raise HTTPException(status_code=400, detail="Invalid or expired token")
-    user = get_user_by_id(db, prt.user_id)
     if not user:
-        raise HTTPException(status_code=400, detail="User not found")
+        raise HTTPException(status_code=404, detail="No user found with this email")
     user.password = hash_password(new_password)
-    prt.used = True
     db.commit()
