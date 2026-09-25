@@ -32,13 +32,16 @@ def refresh(data: RefreshRequest, db: db_dependency):
     return {"access_token": new_access_token, "refresh_token": data.refresh_token, "token_type": "bearer"}
 
 @router.post("/forgot-password")
-def forgot_password(data: ForgotPasswordRequest, db: db_dependency):
-    user = db.query(User).filter(User.email == data.email).first()
+def forgot_password(data: ForgotPasswordRequest | None = None, email: str | None = None, db: db_dependency = None):
+    target_email = data.email if (data and data.email) else email
+    if not target_email or not target_email.strip():
+        raise HTTPException(status_code=400, detail="Email is required")
+    user = service.get_user_by_email(db, target_email.strip())
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email not found")
     return {"message": "Email verified"}
 
 @router.post("/reset-password")
 def reset_password(data: ResetPasswordRequest, db: db_dependency):
-    service.reset_user_password(db, data.email, data.new_password)
+    service.reset_user_password(db, data.email.strip(), data.new_password)
     return {"detail": "Password has been reset successfully."}
